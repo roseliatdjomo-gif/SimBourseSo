@@ -4,15 +4,16 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta                       
 
 # --- FONCTIONS (LOGIQUE) ---
+@st.cache_data # Cette ligne est magique : elle garde les infos en mémoire !
 def obtenir_infos_action(ticker):
     try:
         data = yf.Ticker(ticker)
-        info = data.info
-        secteur = info.get('sector', 'Secteur non disponible')
-        creation = info.get('longBusinessSummary', 'N/A')
+        # On demande seulement le secteur pour aller plus vite
+        secteur = data.fast_info.get('sector', 'Secteur non disponible')
+        creation = "Informations détaillées dans l'onglet 'En savoir plus'"
         return secteur, creation
     except:
-        return "Erreur", "Données indisponibles"
+        return "Secteur indisponible", "Erreur de connexion"
 
 def afficher_graphique_interactif(ticker, periode):
     data = yf.download(ticker, period=periode)
