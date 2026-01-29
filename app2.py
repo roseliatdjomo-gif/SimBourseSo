@@ -2,18 +2,24 @@ import streamlit as st
 import yfinance as yf                                          
 import plotly.graph_objects as go                              
 from datetime import datetime, timedelta                       
-
-# --- FONCTIONS (LOGIQUE) ---
-@st.cache_data # Cette ligne est magique : elle garde les infos en mémoire !
+@st.cache_data
 def obtenir_infos_action(ticker):
+    # Dictionnaire manuel pour les plus gros (pour être sûr que ça marche)
+    secteurs_fixes = {
+        "MC.PA": "Luxe", "OR.PA": "Produits de consommation", 
+        "TTE.PA": "Énergie", "AIR.PA": "Aéronautique",
+        "SAN.PA": "Santé", "BNP.PA": "Banque"
+    }
+    if ticker in secteurs_fixes:
+        return secteurs_fixes[ticker], "Données de l'entreprise disponibles."
+    
     try:
+        # On tente une récupération ultra-légère
         data = yf.Ticker(ticker)
-        # On demande seulement le secteur pour aller plus vite
-        secteur = data.fast_info.get('sector', 'Secteur non disponible')
-        creation = "Informations détaillées dans l'onglet 'En savoir plus'"
-        return secteur, creation
+        sect = data.fast_info.get('sector', 'Diversifié')
+        return sect, "Description en cours de chargement..."
     except:
-        return "Secteur indisponible", "Erreur de connexion"
+        return "CAC 40", "Données indisponibles actuellement"
 
 def afficher_graphique_interactif(ticker, periode):
     data = yf.download(ticker, period=periode)
@@ -57,22 +63,26 @@ st.title("📈 Ma Salle de Marché - BTS SIO")
 action_detail = st.selectbox("Sélectionnez une action :", cac40)
 periode = st.radio("Période :", ["1d", "1mo", "3mo", "6mo", "1y"], horizontal=True)
 
+# AJOUTE CES LIGNES ICI (Juste après le choix de la période)
 st.plotly_chart(afficher_graphique_interactif(action_detail, periode), use_container_width=True)
 
-# AFFICHAGE DE L'EXPLICATION DE TA BASE DE DONNÉES
 st.subheader(f"📜 Analyse des variations ({periode})")
 if action_detail in evenements and periode in evenements[action_detail]:
     st.info(evenements[action_detail][periode])
-else:
-    st.write("Analyse automatique : La variation suit la tendance générale du marché CAC 40.")
 
-st.markdown("---")
+st.markdown("---") # Pour séparer proprement de la grille 
 
 # --- GRILLE DES 40 ACTIONS ---
 cols = st.columns(4)
 for i, ticker in enumerate(cac40):
     try:
-        data = yf.Ticker(ticker).history(period="1mo")
+        # On récupère les prix
+        t = yf.Ticker(ticker)
+        data = t.history(period="1mo")
+        
+        if data.empty:
+            continue
+
         prix = round(data['Close'].iloc[-1], 2)
         moyenne = round(data['Close'].mean(), 2)
         
@@ -82,9 +92,13 @@ for i, ticker in enumerate(cac40):
             st.metric("Prix", f"{prix} €", delta=conseil)
             st.line_chart(data['Close'], height=120)
             
-            sect, desc = obtenir_infos_action(ticker)
-            st.write(f"**Secteur :** {sect}")
-            with st.expander("📖 En savoir plus"):
+            # On n'appelle la fonction secteur QUE si l'utilisateur clique sur "En savoir plus"
+            # Cela évitera de saturer Yahoo Finance !
+            with st.expander("📖 Détails & Secteur"):
+                sect, desc = obtenir_infos_action(ticker)
+                st.write(f"**Secteur :** {sect}")
                 st.caption(desc)
-    except:
+    except Exception as e:
         continue
+
+
